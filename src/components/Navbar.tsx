@@ -32,14 +32,14 @@ export default function Navbar() {
         <div className="flex items-center justify-between py-5">
           <a href="#home" className="flex items-center gap-3 group">
             <div className="w-8 h-8 rounded-full bg-[#1B4332] flex items-center justify-center transition-transform duration-300 group-hover:scale-110">
-              <span className="text-white text-xs font-bold">CW</span>
+              <span className="text-white text-xs font-bold">HT</span>
             </div>
             <span
               className={`font-semibold text-[15px] tracking-tight transition-colors duration-400 ${
                 scrolled ? 'text-neutral-900' : 'text-white'
               }`}
             >
-              Ceylon<span className="font-light">Wheels</span>
+              Harmon Lanka<span className="font-light"> Tours</span>
             </span>
           </a>
 
