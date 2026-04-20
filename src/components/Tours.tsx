@@ -8,6 +8,7 @@ import {
   Route,
   Sparkles,
   Users,
+  MessageCircle,
 } from 'lucide-react';
 import { vehicles } from '../data/vehicles';
 
@@ -697,13 +698,24 @@ export default function Tours() {
                 </p>
               </div>
 
-              <a
-                href="#contact"
-                className="inline-flex items-center justify-center gap-2 rounded-full bg-[#1B4332] text-white px-6 py-3 text-sm font-semibold hover:bg-[#143327] transition"
-              >
-                Plan This Trip
-                <ArrowRight className="w-4 h-4" />
-              </a>
+              <div className="flex flex-col sm:flex-row gap-3">
+                <a
+                  href="#contact"
+                  className="inline-flex items-center justify-center gap-2 rounded-full bg-[#1B4332] text-white px-6 py-3 text-sm font-semibold hover:bg-[#143327] transition"
+                >
+                  Plan This Trip
+                  <ArrowRight className="w-4 h-4" />
+                </a>
+                <a
+                  href="https://wa.me/94703476874?text=Hi%2C%20I%20am%20interested%20in%20booking%20the%20following%20tour%3A%20"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center justify-center gap-2 rounded-full bg-[#25D366] text-white px-6 py-3 text-sm font-semibold hover:bg-[#1da851] transition"
+                >
+                  <MessageCircle className="w-4 h-4" />
+                  Book via WhatsApp
+                </a>
+              </div>
             </div>
 
             <div className="grid grid-cols-1 xl:grid-cols-[1.1fr,0.9fr] gap-8">

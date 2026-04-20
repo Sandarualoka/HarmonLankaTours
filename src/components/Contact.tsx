@@ -1,11 +1,11 @@
 import { useState } from 'react';
-import { Phone, Mail, MapPin, ArrowRight, CheckCircle } from 'lucide-react';
+import { Phone, Mail, MapPin, ArrowRight, CheckCircle, MessageCircle } from 'lucide-react';
 import { useMultiInView } from '../hooks/useMultiInView';
 
 const contactInfo = [
-  { icon: Phone, label: 'Call Us', value: '+94 77 123 4567' },
-  { icon: Mail, label: 'Email', value: 'info@ceylonwheels.lk' },
-  { icon: MapPin, label: 'Address', value: '12, Temple Road, Kandy, Sri Lanka' },
+  { icon: Phone, label: 'Call Us', value: '+94 703476874' },
+  { icon: Mail, label: 'Email', value: 'info@harmonlankatours.lk' },
+  { icon: MapPin, label: 'Address', value: '24/26 jayawikumgama , weligama' },
 ];
 
 export default function Contact() {
@@ -72,6 +72,21 @@ export default function Contact() {
                 </div>
               </div>
             ))}
+
+            <a
+              href="https://wa.me/94703476874?text=Hi%2C%20I%20am%20interested%20in%20booking%20a%20tour%20in%20Sri%20Lanka"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-4 p-4 rounded-xl bg-[#25D366]/10 border border-[#25D366] hover:bg-[#25D366]/20 transition"
+            >
+              <div className="w-9 h-9 rounded-lg bg-[#25D366] flex items-center justify-center flex-shrink-0">
+                <MessageCircle className="w-4 h-4 text-white" />
+              </div>
+              <div>
+                <p className="text-[#25D366] text-xs uppercase tracking-wider font-semibold mb-0.5">Chat on WhatsApp</p>
+                <p className="text-neutral-700 text-sm font-medium">Quick response · Available 24/7</p>
+              </div>
+            </a>
 
             <div className="pt-4 border-t border-neutral-200">
               <p className="text-neutral-400 text-xs mb-1 uppercase tracking-wider">Available 24/7</p>
