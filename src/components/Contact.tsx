@@ -50,11 +50,11 @@ export default function Contact() {
               className="img-zoom relative rounded-2xl overflow-hidden h-52"
             >
               <img
-                src="https://images.pexels.com/photos/3586966/pexels-photo-3586966.jpeg?auto=compress&cs=tinysrgb&w=800"
+                src="https://images.pexels.com/photos/34714747/pexels-photo-34714747.jpeg?auto=compress&cs=tinysrgb&w=800"
                 alt="Sri Lanka"
                 className="w-full h-full object-cover"
               />
-              <div className="absolute inset-0 bg-neutral-900/50" />
+              <div className="absolute inset-0 bg-neutral-700/50" />
               <div className="relative p-6 h-full flex flex-col justify-end">
                 <p className="text-white font-semibold text-lg">We Speak Your Language</p>
                 <p className="text-white/60 text-sm mt-1">English · Sinhala · Tamil · French · German · Japanese · Mandarin</p>

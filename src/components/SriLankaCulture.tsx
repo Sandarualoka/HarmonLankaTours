@@ -1,12 +1,12 @@
 import { useMultiInView } from '../hooks/useMultiInView';
 
 const places = [
-  { image: 'https://images.pexels.com/photos/3586966/pexels-photo-3586966.jpeg?auto=compress&cs=tinysrgb&w=600', title: 'Sigiriya', tag: 'Ancient Kingdom' },
-  { image: 'https://images.pexels.com/photos/3889742/pexels-photo-3889742.jpeg?auto=compress&cs=tinysrgb&w=600', title: 'Galle Fort', tag: 'UNESCO Heritage' },
-  { image: 'https://images.pexels.com/photos/247502/pexels-photo-247502.jpeg?auto=compress&cs=tinysrgb&w=600', title: 'Yala', tag: 'Wildlife Reserve' },
-  { image: 'https://images.pexels.com/photos/1320686/pexels-photo-1320686.jpeg?auto=compress&cs=tinysrgb&w=600', title: 'Mirissa', tag: 'South Coast' },
-  { image: 'https://images.pexels.com/photos/1493112/pexels-photo-1493112.jpeg?auto=compress&cs=tinysrgb&w=600', title: 'Nuwara Eliya', tag: 'Tea Country' },
-  { image: 'https://images.pexels.com/photos/2474690/pexels-photo-2474690.jpeg?auto=compress&cs=tinysrgb&w=600', title: 'Ella', tag: 'Hill Country' },
+  { image: 'https://images.pexels.com/photos/19574565/pexels-photo-19574565.jpeg?auto=compress&cs=tinysrgb&w=600', title: 'Sigiriya', tag: 'Ancient Kingdom' },
+  { image: 'https://images.pexels.com/photos/31194791/pexels-photo-31194791.jpeg?auto=compress&cs=tinysrgb&w=600', title: 'Galle Fort', tag: 'UNESCO Heritage' },
+  { image: 'https://images.pexels.com/photos/13784932/pexels-photo-13784932.jpeg?auto=compress&cs=tinysrgb&w=600', title: 'Yala', tag: 'Wildlife Reserve' },
+  { image: 'https://images.pexels.com/photos/29644514/pexels-photo-29644514.jpeg?auto=compress&cs=tinysrgb&w=600', title: 'Mirissa', tag: 'South Coast' },
+  { image: 'https://images.pexels.com/photos/321570/pexels-photo-321570.jpeg?auto=compress&cs=tinysrgb&w=600', title: 'Nuwara Eliya', tag: 'Tea Country' },
+  { image: 'https://images.pexels.com/photos/34714986/pexels-photo-34714986.jpeg?auto=compress&cs=tinysrgb&w=600', title: 'Ella', tag: 'Hill Country' },
 ];
 
 const facts = [
