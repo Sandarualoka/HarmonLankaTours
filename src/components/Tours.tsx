@@ -8,9 +8,9 @@ import {
 import {
   MapContainer,
   TileLayer,
-  CircleMarker,
-  Tooltip,
   Marker,
+  Polyline,
+  Tooltip,
 } from 'react-leaflet';
 import { divIcon } from 'leaflet';
 import 'leaflet/dist/leaflet.css';
@@ -54,7 +54,6 @@ type ActivityKey =
   | 'yoga'
   | 'botiqueShopping';
 
-
 interface Destination {
   id: string;
   name: string;
@@ -74,6 +73,23 @@ interface FleetOption {
   label: string;
   reason: string;
 }
+
+type ProvinceName =
+  | 'North Central'
+  | 'Central'
+  | 'Uva'
+  | 'Sabaragamuwa'
+  | 'Southern'
+  | 'Western';
+
+type RouteDirection = 'north-to-south' | 'south-to-north';
+
+type RoutePlace = Destination & {
+  province: ProvinceName;
+  latitude: number;
+  longitude: number;
+  estimatedKmFromPrevious: number;
+};
 
 type TravelPace = 'Relaxed' | 'Balanced' | 'Active';
 
@@ -111,7 +127,12 @@ const focusToInterest: Partial<Record<ExperienceFocus, Interest>> = {
   Heritage: 'archaeologicalSites',
   Wildlife: 'wildlife',
   'Hill Country': 'centralHills',
+  Nature: 'mountainsWaterfalls',
+  Family: 'elephants',
+  Honeymoon: 'beaches',
+  Adventure: 'mountainsWaterfalls',
 };
+
 interface PlannerFormState {
   name: string;
   arrivalDate: string;
@@ -164,29 +185,6 @@ const initialPlannerForm: PlannerFormState = {
   },
 };
 
-function buildDayPlan(destinations: Destination[], dayCount: number) {
-  const perDay = Array.from({ length: dayCount }, (_, i) => ({
-    day: i + 1,
-    stops: [] as Destination[],
-  }));
-
-  destinations.forEach((destination, index) => {
-    perDay[index % dayCount].stops.push(destination);
-  });
-
-  return perDay.map((item) => ({
-    day: item.day,
-    title:
-      item.stops.length === 0
-        ? 'Free day'
-        : item.stops.length === 1
-        ? `${item.stops[0].name} Experience`
-        : `${item.stops[0].region} Discovery`,
-    stops: item.stops,
-    experiences: item.stops.length > 0 ? item.stops.flatMap((stop) => stop.activities.slice(0, 2)) : [],
-  }));
-}
-
 const activityInterestMap: Record<ActivityKey, Interest> = {
   whaleWatching: 'whaleWatching',
   scubaDiving: 'scubaDiving',
@@ -212,31 +210,162 @@ const selectedPlaceInterestMap: Record<string, Interest> = {
   'Archiological Sites': 'archaeologicalSites',
 };
 
-const placeCoordinates: Record<string, [number, number]> = {
-  Sigiriya: [7.9579, 80.7600],
-  Kandy: [7.2906, 80.6337],
-  Ella: [6.8411, 81.1132],
-  Yala: [6.4400, 81.5500],
-  Bentota: [6.4200, 79.9861],
-  Mirissa: [5.9480, 80.4606],
-  Galle: [6.0535, 80.2210],
-  'Nuwara Eliya': [6.9497, 80.7890],
-  Anuradhapura: [8.3114, 80.4037],
-  Udawalawe: [6.4133, 80.9510],
-  Madu: [6.4320, 79.9900],
-  Horton: [6.8000, 80.8050],
-  Hikkaduwa: [6.1460, 80.1030],
-  Weligama: [5.9527, 80.4183],
-  Minneriya: [8.3600, 80.9900],
-  Dambulla: [7.8560, 80.6510],
-  Polonnaruwa: [7.9400, 81.0000],
-  Hatton: [6.8286, 80.5971],
-  'South Coast': [5.9720, 80.4543],
+const placeMeta: Record<
+  string,
+  {
+    province: ProvinceName;
+    lat: number;
+    lng: number;
+  }
+> = {
+  Anuradhapura: { province: 'North Central', lat: 8.3114, lng: 80.4037 },
+  Minneriya: { province: 'North Central', lat: 8.0362, lng: 80.9036 },
+  Polonnaruwa: { province: 'North Central', lat: 7.9403, lng: 81.0188 },
+  Dambulla: { province: 'Central', lat: 7.8560, lng: 80.6510 },
+  Sigiriya: { province: 'Central', lat: 7.9570, lng: 80.7603 },
+  Kandy: { province: 'Central', lat: 7.2906, lng: 80.6337 },
+  Hatton: { province: 'Central', lat: 6.8397, lng: 80.6084 },
+  Horton: { province: 'Central', lat: 6.8021, lng: 80.8071 },
+  'Nuwara Eliya': { province: 'Central', lat: 6.9497, lng: 80.7891 },
+  Ella: { province: 'Uva', lat: 6.8667, lng: 81.0466 },
+  Yala: { province: 'Southern', lat: 6.3722, lng: 81.5207 },
+  Udawalawe: { province: 'Sabaragamuwa', lat: 6.4244, lng: 80.8177 },
+  Mirissa: { province: 'Southern', lat: 5.9483, lng: 80.4716 },
+  Weligama: { province: 'Southern', lat: 5.9739, lng: 80.4297 },
+  Galle: { province: 'Southern', lat: 6.0535, lng: 80.2210 },
+  Hikkaduwa: { province: 'Southern', lat: 6.1407, lng: 80.1012 },
+  Madu: { province: 'Southern', lat: 6.3134, lng: 80.0388 },
+  Bentota: { province: 'Western', lat: 6.4211, lng: 79.9989 },
+  Colombo: { province: 'Western', lat: 6.9271, lng: 79.8612 },
+  'South Coast': { province: 'Southern', lat: 5.9483, lng: 80.4716 },
+  'Hill Country': { province: 'Central', lat: 6.9497, lng: 80.7891 },
+  Wildlife: { province: 'Southern', lat: 6.3722, lng: 81.5207 },
+  Heritage: { province: 'Central', lat: 7.9570, lng: 80.7603 },
+  City: { province: 'Western', lat: 6.9271, lng: 79.8612 },
 };
 
 const defaultSriLankaCenter: [number, number] = [7.8731, 80.7718];
 
-function buildReadyMadeInput(form: PlannerFormState, selectedPlaces: string[]): PlannerInput {
+function getPlaceMeta(placeName: string, area?: string) {
+  return placeMeta[placeName] || placeMeta[area || ''] || placeMeta.Colombo;
+}
+
+function calculateDistanceKm(
+  from: { latitude: number; longitude: number },
+  to: { latitude: number; longitude: number }
+) {
+  const earthRadiusKm = 6371;
+  const dLat = ((to.latitude - from.latitude) * Math.PI) / 180;
+  const dLng = ((to.longitude - from.longitude) * Math.PI) / 180;
+
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos((from.latitude * Math.PI) / 180) *
+      Math.cos((to.latitude * Math.PI) / 180) *
+      Math.sin(dLng / 2) *
+      Math.sin(dLng / 2);
+
+  return Math.round(
+    earthRadiusKm * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
+  );
+}
+
+function sortRouteByMapFlow(
+  places: RoutePlace[],
+  direction: RouteDirection = 'north-to-south'
+) {
+  return [...places].sort((a, b) => {
+    if (direction === 'north-to-south') {
+      return b.latitude - a.latitude;
+    }
+
+    return a.latitude - b.latitude;
+  });
+}
+
+function getRouteDirection(destinations: RoutePlace[]): RouteDirection {
+  if (destinations.length < 2) {
+    return 'north-to-south';
+  }
+
+  const northCount = destinations.filter((item) => item.latitude >= 7).length;
+  const southCount = destinations.filter((item) => item.latitude < 7).length;
+
+  if (southCount > northCount) {
+    return 'south-to-north';
+  }
+
+  return 'north-to-south';
+}
+
+function buildSmartDayPlan(
+  destinations: RoutePlace[],
+  dayCount: number,
+  direction: RouteDirection = 'north-to-south'
+) {
+  const sorted = sortRouteByMapFlow(destinations, direction);
+
+  const days = Array.from({ length: dayCount }, (_, index) => ({
+    day: index + 1,
+    province: '',
+    title: 'Free day / Leisure day',
+    stops: [] as RoutePlace[],
+    experiences: [] as string[],
+    totalKm: 0,
+    routeNote: '',
+  }));
+
+  let currentDay = 0;
+  let activeProvince = sorted[0]?.province || '';
+
+  sorted.forEach((place, index) => {
+    const previousPlace = sorted[index - 1];
+
+    const distanceFromPrevious = previousPlace
+      ? calculateDistanceKm(previousPlace, place)
+      : 0;
+
+    const provinceChanged = place.province !== activeProvince;
+    const dayIsFull = days[currentDay].stops.length >= 2;
+
+    if ((provinceChanged || dayIsFull) && currentDay < dayCount - 1) {
+      currentDay += 1;
+      activeProvince = place.province;
+    }
+
+    days[currentDay].stops.push({
+      ...place,
+      estimatedKmFromPrevious: distanceFromPrevious,
+    });
+
+    days[currentDay].province = place.province;
+    days[currentDay].totalKm += distanceFromPrevious;
+  });
+
+  return days.map((item) => {
+    const firstStop = item.stops[0];
+
+    return {
+      ...item,
+      title:
+        item.stops.length === 0
+          ? 'Free day / Leisure day'
+          : `${item.province} Province Exploration`,
+      experiences: item.stops.flatMap((stop) => stop.activities.slice(0, 2)),
+      routeNote:
+        item.stops.length > 1
+          ? `Complete ${item.province} Province locations before moving to the next province.`
+          : firstStop
+          ? `Visit ${firstStop.name} and continue the route flow.`
+          : 'Use this day for relaxation or optional local experiences.',
+    };
+  });
+}
+
+function buildReadyMadeInput(
+  form: PlannerFormState,
+  selectedPlaces: string[]
+): PlannerInput {
   const interestsFromActivities = Object.entries(form.activities)
     .filter(([, value]) => value)
     .map(([key]) => activityInterestMap[key as ActivityKey]);
@@ -249,11 +378,13 @@ function buildReadyMadeInput(form: PlannerFormState, selectedPlaces: string[]): 
     .map((place) => selectedPlaceInterestMap[place])
     .filter(Boolean) as Interest[];
 
-  const selectedInterests = Array.from(new Set([
-    ...interestsFromActivities,
-    ...interestsFromFocus,
-    ...interestsFromPlaces,
-  ])) as Interest[];
+  const selectedInterests = Array.from(
+    new Set([
+      ...interestsFromActivities,
+      ...interestsFromFocus,
+      ...interestsFromPlaces,
+    ])
+  ) as Interest[];
 
   const arrivalMonth = form.arrivalDate
     ? new Date(form.arrivalDate).toLocaleString('default', { month: 'long' })
@@ -266,7 +397,9 @@ function buildReadyMadeInput(form: PlannerFormState, selectedPlaces: string[]): 
     adults: form.adults,
     children: form.children,
     month: arrivalMonth,
-    interests: selectedInterests.length ? selectedInterests : ['culture', 'beaches'],
+    interests: selectedInterests.length
+      ? selectedInterests
+      : ['culture', 'beaches'],
     notes: form.notes,
   };
 }
@@ -274,35 +407,65 @@ function buildReadyMadeInput(form: PlannerFormState, selectedPlaces: string[]): 
 type PlannerResult = {
   title: string;
   route: string;
-  destinations: Destination[];
-  dailyPlan: ReturnType<typeof buildDayPlan>;
+  destinations: RoutePlace[];
+  dailyPlan: ReturnType<typeof buildSmartDayPlan>;
   notes: string[];
   recommendedFleet: FleetOption;
+  direction: RouteDirection;
 };
 
-function buildPlannerResult(form: PlannerFormState, recommendation: ReturnType<typeof getRecommendations>): PlannerResult {
-  const destinations = recommendation.places.map((place, index) => ({
-    id: `suggested-${index}`,
-    name: place.name,
-    region: ['South Coast', 'Hill Country', 'Wildlife', 'Heritage', 'City'].includes(place.area)
-      ? (place.area as Destination['region'])
-      : 'Heritage',
-    themes: ['Any'] as Theme[],
-    idealDays: 1,
-    nearby: [] as string[],
-    activityLevel: 'Balanced' as const,
-    description: place.reason,
-    activities: place.activities,
-  }));
+function buildRoutePlaces(
+  recommendation: ReturnType<typeof getRecommendations>
+): RoutePlace[] {
+  return recommendation.places.map((place, index) => {
+    const meta = getPlaceMeta(place.name, place.area);
 
+    return {
+      id: `suggested-${index}`,
+      name: place.name,
+      region: ['South Coast', 'Hill Country', 'Wildlife', 'Heritage', 'City'].includes(
+        place.area
+      )
+        ? (place.area as Destination['region'])
+        : 'Heritage',
+      province: meta.province,
+      latitude: meta.lat,
+      longitude: meta.lng,
+      estimatedKmFromPrevious: 0,
+      themes: ['Any'] as Theme[],
+      idealDays: 1,
+      nearby: [] as string[],
+      activityLevel: 'Balanced' as const,
+      description: place.reason,
+      activities: place.activities,
+    };
+  });
+}
+
+function buildPlannerResult(
+  form: PlannerFormState,
+  recommendation: ReturnType<typeof getRecommendations>
+): PlannerResult {
+  const destinations = buildRoutePlaces(recommendation);
+  const direction = getRouteDirection(destinations);
+  const smartPlan = buildSmartDayPlan(destinations, form.duration, direction);
   const totalGuests = form.adults + form.children;
 
   return {
     title: recommendation.best.tour.title,
-    route: recommendation.best.tour.route.join(' → '),
+    route: smartPlan
+      .flatMap((day) => day.stops.map((stop) => stop.name))
+      .join(' → '),
     destinations,
-    dailyPlan: buildDayPlan(destinations, form.duration),
-    notes: [form.notes || recommendation.best.tour.overview],
+    dailyPlan: smartPlan,
+    direction,
+    notes: [
+      form.notes || recommendation.best.tour.overview,
+      `Route planned ${
+        direction === 'north-to-south' ? 'top to bottom' : 'bottom to top'
+      } using Sri Lanka map flow.`,
+      'Locations are grouped by province to avoid overlapping travel between days.',
+    ],
     recommendedFleet: {
       name: totalGuests > 4 ? 'Luxury Van' : 'Private Car',
       minGuests: 1,
@@ -318,13 +481,36 @@ export default function Tours() {
   const [isPlannerOpen, setIsPlannerOpen] = useState(false);
   const [plannerStep, setPlannerStep] = useState(1);
   const [isPageAnimating, setIsPageAnimating] = useState(false);
-  const [plannerForm, setPlannerForm] = useState<PlannerFormState>(initialPlannerForm);
-  const [plannerResult, setPlannerResult] = useState<null | PlannerResult>(null);
+  const [plannerForm, setPlannerForm] =
+    useState<PlannerFormState>(initialPlannerForm);
+  const [plannerResult, setPlannerResult] = useState<null | PlannerResult>(
+    null
+  );
 
   const recommendation = useMemo(
     () => getRecommendations(buildReadyMadeInput(plannerForm, selectedPlaces)),
     [plannerForm, selectedPlaces]
   );
+
+  const previewRoutePlaces = useMemo(
+    () => buildRoutePlaces(recommendation),
+    [recommendation]
+  );
+
+  const previewDirection = useMemo(
+    () => getRouteDirection(previewRoutePlaces),
+    [previewRoutePlaces]
+  );
+
+  const previewSortedPlaces = useMemo(
+    () => sortRouteByMapFlow(previewRoutePlaces, previewDirection),
+    [previewRoutePlaces, previewDirection]
+  );
+
+  const previewMapLine = previewSortedPlaces.map((place) => [
+    place.latitude,
+    place.longitude,
+  ]) as [number, number][];
 
   const selectedActivities = useMemo(
     () =>
@@ -342,7 +528,13 @@ export default function Tours() {
     const itineraryText = plannerResult.dailyPlan
       .map(
         (day) =>
-          `Day ${day.day}: ${day.title}\nStops: ${day.stops.map((stop) => stop.name).join(' → ')}\nHighlights: ${day.experiences.join(', ')}`
+          `Day ${day.day}: ${day.title}\nProvince: ${
+            day.province || 'Flexible'
+          }\nApprox distance: ${day.totalKm} km\nStops: ${
+            day.stops.length
+              ? day.stops.map((stop) => stop.name).join(' → ')
+              : 'Leisure day'
+          }\nHighlights: ${day.experiences.join(', ')}`
       )
       .join('\n\n');
 
@@ -356,11 +548,20 @@ export default function Tours() {
       `Duration: ${plannerForm.duration} days`,
       `Country: ${plannerForm.country}`,
       `Travel focus: ${plannerForm.focus}`,
-      `Selected interests: ${selectedPlaces.length ? selectedPlaces.join(', ') : 'None'}`,
-      `Selected activities: ${selectedActivities.length ? selectedActivities.join(', ') : 'None'}`,
+      `Selected interests: ${
+        selectedPlaces.length ? selectedPlaces.join(', ') : 'None'
+      }`,
+      `Selected activities: ${
+        selectedActivities.length ? selectedActivities.join(', ') : 'None'
+      }`,
       '',
       `Tour title: ${plannerResult.title}`,
       `Route: ${plannerResult.route}`,
+      `Route direction: ${
+        plannerResult.direction === 'north-to-south'
+          ? 'North to South'
+          : 'South to North'
+      }`,
       `Recommended vehicle: ${plannerResult.recommendedFleet.label}`,
       '',
       'Itinerary:',
@@ -370,7 +571,9 @@ export default function Tours() {
       plannerResult.notes.length ? plannerResult.notes.join('\n') : 'None',
     ];
 
-    return `https://wa.me/94703476874?text=${encodeURIComponent(messageLines.join('\n'))}`;
+    return `https://wa.me/94703476874?text=${encodeURIComponent(
+      messageLines.join('\n')
+    )}`;
   };
 
   const togglePlace = (place: string) => {
@@ -381,13 +584,17 @@ export default function Tours() {
     );
   };
 
-  const updatePlannerForm = (field: keyof PlannerFormState, value: string | number) => {
+  const updatePlannerForm = (
+    field: keyof PlannerFormState,
+    value: string | number
+  ) => {
     setPlannerForm((current) => ({ ...current, [field]: value }));
   };
 
   const openPlanner = () => {
     setPlannerForm(initialPlannerForm);
     setPlannerStep(1);
+    setPlannerResult(null);
     setIsPlannerOpen(true);
   };
 
@@ -416,7 +623,6 @@ export default function Tours() {
     }
   };
 
-
   const toggleActivity = (key: ActivityKey) => {
     setPlannerForm((current) => ({
       ...current,
@@ -426,6 +632,7 @@ export default function Tours() {
       },
     }));
   };
+
   const renderPlannerStep = () => {
     const visibleClass = isPageAnimating
       ? 'opacity-0 translate-y-4'
@@ -447,14 +654,17 @@ export default function Tours() {
                 {plannerStep === 2 && 'Select activities'}
                 {plannerStep === 3 && 'Tell us your interests'}
                 {plannerStep === 4 && 'Suggested places'}
-                {plannerStep === 5 && 'Sri Lanka map'}
+                {plannerStep === 5 && 'Sri Lanka map route'}
               </h3>
             </div>
+
             <div className="hidden sm:flex items-center gap-2 text-sm text-neutral-500">
               {['1', '2', '3', '4', '5'].map((step, index) => (
                 <span
                   key={step}
-                  className={`h-2 w-8 rounded-full ${plannerStep > index ? 'bg-[#1B4332]' : 'bg-neutral-200'}`}
+                  className={`h-2 w-8 rounded-full ${
+                    plannerStep > index ? 'bg-[#1B4332]' : 'bg-neutral-200'
+                  }`}
                 />
               ))}
             </div>
@@ -463,7 +673,9 @@ export default function Tours() {
           {plannerStep === 1 && (
             <div className="grid gap-4 sm:grid-cols-2">
               <label className="space-y-2">
-                <span className="text-sm font-medium text-neutral-800">Name</span>
+                <span className="text-sm font-medium text-neutral-800">
+                  Name
+                </span>
                 <input
                   type="text"
                   value={plannerForm.name}
@@ -474,58 +686,80 @@ export default function Tours() {
               </label>
 
               <label className="space-y-2">
-                <span className="text-sm font-medium text-neutral-800">Arrival date</span>
+                <span className="text-sm font-medium text-neutral-800">
+                  Arrival date
+                </span>
                 <input
                   type="date"
                   value={plannerForm.arrivalDate}
-                  onChange={(e) => updatePlannerForm('arrivalDate', e.target.value)}
+                  onChange={(e) =>
+                    updatePlannerForm('arrivalDate', e.target.value)
+                  }
                   className="w-full rounded-2xl border border-neutral-200 bg-neutral-50 px-4 py-3 text-sm text-neutral-900 outline-none transition focus:border-[#1B4332]"
                 />
               </label>
 
               <label className="space-y-2">
-                <span className="text-sm font-medium text-neutral-800">Adults</span>
+                <span className="text-sm font-medium text-neutral-800">
+                  Adults
+                </span>
                 <input
                   type="number"
                   min={1}
                   value={plannerForm.adults}
-                  onChange={(e) => updatePlannerForm('adults', Number(e.target.value))}
+                  onChange={(e) =>
+                    updatePlannerForm('adults', Number(e.target.value))
+                  }
                   className="w-full rounded-2xl border border-neutral-200 bg-neutral-50 px-4 py-3 text-sm text-neutral-900 outline-none transition focus:border-[#1B4332]"
                 />
               </label>
 
               <label className="space-y-2">
-                <span className="text-sm font-medium text-neutral-800">Children</span>
+                <span className="text-sm font-medium text-neutral-800">
+                  Children
+                </span>
                 <input
                   type="number"
                   min={0}
                   value={plannerForm.children}
-                  onChange={(e) => updatePlannerForm('children', Number(e.target.value))}
+                  onChange={(e) =>
+                    updatePlannerForm('children', Number(e.target.value))
+                  }
                   className="w-full rounded-2xl border border-neutral-200 bg-neutral-50 px-4 py-3 text-sm text-neutral-900 outline-none transition focus:border-[#1B4332]"
                 />
               </label>
 
               <label className="space-y-2 sm:col-span-2">
-                <span className="text-sm font-medium text-neutral-800">Trip duration</span>
+                <span className="text-sm font-medium text-neutral-800">
+                  Trip duration
+                </span>
                 <select
                   value={plannerForm.duration}
-                  onChange={(e) => updatePlannerForm('duration', Number(e.target.value))}
+                  onChange={(e) =>
+                    updatePlannerForm('duration', Number(e.target.value))
+                  }
                   className="w-full rounded-2xl border border-neutral-200 bg-neutral-50 px-4 py-3 text-sm text-neutral-900 outline-none transition focus:border-[#1B4332]"
                 >
-                  {Array.from({ length: 14 }, (_, index) => index + 1).map((day) => (
-                    <option key={day} value={day}>
-                      {day} day{day > 1 ? 's' : ''}
-                    </option>
-                  ))}
+                  {Array.from({ length: 14 }, (_, index) => index + 1).map(
+                    (day) => (
+                      <option key={day} value={day}>
+                        {day} day{day > 1 ? 's' : ''}
+                      </option>
+                    )
+                  )}
                 </select>
               </label>
 
               <label className="space-y-2 sm:col-span-2">
-                <span className="text-sm font-medium text-neutral-800">Guest country</span>
+                <span className="text-sm font-medium text-neutral-800">
+                  Guest country
+                </span>
                 <input
                   type="text"
                   value={plannerForm.country}
-                  onChange={(e) => updatePlannerForm('country', e.target.value)}
+                  onChange={(e) =>
+                    updatePlannerForm('country', e.target.value)
+                  }
                   placeholder="Country of origin"
                   className="w-full rounded-2xl border border-neutral-200 bg-neutral-50 px-4 py-3 text-sm text-neutral-900 outline-none transition focus:border-[#1B4332]"
                 />
@@ -550,22 +784,25 @@ export default function Tours() {
                       key={activity.key}
                       type="button"
                       onClick={() => toggleActivity(activity.key)}
-                      className={`flex items-center justify-between gap-4 rounded-2xl border px-4 py-4 text-left transition ${active
-                        ? 'border-[#1B4332] bg-[#1B4332]/10'
-                        : 'border-neutral-200 bg-white hover:border-[#1B4332]'
-                        }`}
+                      className={`flex items-center justify-between gap-4 rounded-2xl border px-4 py-4 text-left transition ${
+                        active
+                          ? 'border-[#1B4332] bg-[#1B4332]/10'
+                          : 'border-neutral-200 bg-white hover:border-[#1B4332]'
+                      }`}
                     >
                       <span className="text-sm font-semibold text-neutral-800">
                         {activity.label}
                       </span>
 
                       <span
-                        className={`relative inline-flex h-7 w-12 items-center rounded-full transition ${active ? 'bg-[#1B4332]' : 'bg-neutral-300'
-                          }`}
+                        className={`relative inline-flex h-7 w-12 items-center rounded-full transition ${
+                          active ? 'bg-[#1B4332]' : 'bg-neutral-300'
+                        }`}
                       >
                         <span
-                          className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition ${active ? 'translate-x-6' : 'translate-x-1'
-                            }`}
+                          className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition ${
+                            active ? 'translate-x-6' : 'translate-x-1'
+                          }`}
                         />
                       </span>
                     </button>
@@ -604,22 +841,25 @@ export default function Tours() {
                       key={interest}
                       type="button"
                       onClick={() => togglePlace(interest)}
-                      className={`flex items-center justify-between gap-4 rounded-2xl border px-4 py-4 text-left transition ${active
-                        ? 'border-[#1B4332] bg-[#1B4332]/10'
-                        : 'border-neutral-200 bg-white hover:border-[#1B4332]'
-                        }`}
+                      className={`flex items-center justify-between gap-4 rounded-2xl border px-4 py-4 text-left transition ${
+                        active
+                          ? 'border-[#1B4332] bg-[#1B4332]/10'
+                          : 'border-neutral-200 bg-white hover:border-[#1B4332]'
+                      }`}
                     >
                       <span className="text-sm font-semibold text-neutral-800">
                         {interest}
                       </span>
 
                       <span
-                        className={`relative inline-flex h-7 w-12 items-center rounded-full transition ${active ? 'bg-[#1B4332]' : 'bg-neutral-300'
-                          }`}
+                        className={`relative inline-flex h-7 w-12 items-center rounded-full transition ${
+                          active ? 'bg-[#1B4332]' : 'bg-neutral-300'
+                        }`}
                       >
                         <span
-                          className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition ${active ? 'translate-x-6' : 'translate-x-1'
-                            }`}
+                          className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition ${
+                            active ? 'translate-x-6' : 'translate-x-1'
+                          }`}
                         />
                       </span>
                     </button>
@@ -632,26 +872,69 @@ export default function Tours() {
           {plannerStep === 4 && (
             <div className="space-y-6">
               <div className="rounded-3xl border border-neutral-200 bg-white p-5 shadow-sm">
-                <h4 className="text-lg font-bold text-neutral-900">Suggested places</h4>
-                <p className="mt-2 text-sm text-neutral-600">Based on your selected interests, here are the next places guests should visit.</p>
+                <h4 className="text-lg font-bold text-neutral-900">
+                  Suggested places
+                </h4>
+                <p className="mt-2 text-sm text-neutral-600">
+                  Based on your selected interests, here are the next places
+                  guests should visit. The final plan will be arranged by Sri
+                  Lanka map flow and province order.
+                </p>
+
+                <label className="mt-5 block space-y-2">
+                  <span className="text-sm font-medium text-neutral-800">
+                    Special notes / guest requirements
+                  </span>
+                  <textarea
+                    value={plannerForm.notes}
+                    onChange={(e) => updatePlannerForm('notes', e.target.value)}
+                    placeholder="Example: less travel time, beach relaxation, senior-friendly, honeymoon setup..."
+                    className="min-h-[110px] w-full rounded-3xl border border-neutral-200 bg-neutral-50 px-4 py-4 text-sm text-neutral-900 outline-none transition focus:border-[#1B4332]"
+                  />
+                </label>
+
                 <div className="mt-4 grid gap-5">
-                  {recommendation.places.map((place) => (
-                    <div key={place.name} className="overflow-hidden rounded-3xl border border-neutral-100 bg-neutral-50 shadow-sm">
-                      <div className="relative h-64 w-full overflow-hidden bg-neutral-200">
-                        <img src={place.image} alt={place.name} className="h-full w-full object-cover" />
-                      </div>
-                      <div className="p-5">
-                        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-amber-600">{place.area}</p>
-                        <h5 className="mt-2 text-xl font-bold text-neutral-900">{place.name}</h5>
-                        <p className="mt-3 text-sm leading-6 text-neutral-600">{place.reason}</p>
-                        <div className="mt-4 flex flex-wrap gap-2">
-                          {place.activities.map((activity) => (
-                            <span key={activity} className="rounded-full bg-neutral-100 px-3 py-1 text-xs font-medium text-neutral-700">{activity}</span>
-                          ))}
+                  {recommendation.places.map((place) => {
+                    const meta = getPlaceMeta(place.name, place.area);
+
+                    return (
+                      <div
+                        key={place.name}
+                        className="overflow-hidden rounded-3xl border border-neutral-100 bg-neutral-50 shadow-sm"
+                      >
+                        <div className="relative h-64 w-full overflow-hidden bg-neutral-200">
+                          <img
+                            src={place.image}
+                            alt={place.name}
+                            className="h-full w-full object-cover"
+                          />
+                        </div>
+
+                        <div className="p-5">
+                          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-amber-600">
+                            {meta.province} Province
+                          </p>
+                          <h5 className="mt-2 text-xl font-bold text-neutral-900">
+                            {place.name}
+                          </h5>
+                          <p className="mt-3 text-sm leading-6 text-neutral-600">
+                            {place.reason}
+                          </p>
+
+                          <div className="mt-4 flex flex-wrap gap-2">
+                            {place.activities.map((activity) => (
+                              <span
+                                key={activity}
+                                className="rounded-full bg-neutral-100 px-3 py-1 text-xs font-medium text-neutral-700"
+                              >
+                                {activity}
+                              </span>
+                            ))}
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
             </div>
@@ -662,9 +945,18 @@ export default function Tours() {
               <div className="grid gap-6 lg:grid-cols-[1.5fr,0.5fr]">
                 <div className="rounded-3xl border border-neutral-200 bg-white shadow-sm">
                   <div className="px-5 py-4">
-                    <h4 className="text-lg font-bold text-neutral-900">Sri Lanka map view</h4>
-                    <p className="mt-2 text-sm text-neutral-600">Interactive map showing suggested places on OpenStreetMap with exact coordinates. Use zoom controls or mouse wheel to explore.</p>
+                    <h4 className="text-lg font-bold text-neutral-900">
+                      Sri Lanka map route
+                    </h4>
+                    <p className="mt-2 text-sm text-neutral-600">
+                      The route is arranged{' '}
+                      {previewDirection === 'north-to-south'
+                        ? 'top to bottom'
+                        : 'bottom to top'}{' '}
+                      by province, so locations do not overlap between days.
+                    </p>
                   </div>
+
                   <div className="h-[calc(100vh-260px)] min-h-[500px] w-full overflow-hidden rounded-b-3xl">
                     <MapContainer
                       center={defaultSriLankaCenter}
@@ -682,34 +974,69 @@ export default function Tours() {
                         attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
                         url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
                       />
-                      {recommendation.places.map((place, index) => {
-                        const position = placeCoordinates[place.area] || placeCoordinates[place.name] || defaultSriLankaCenter;
-                        return (
-                          <Marker
-                            key={place.name}
-                            position={position}
-                            icon={divIcon({
-                              html: `<div style="display: flex; align-items: center; justify-content: center; width: 32px; height: 32px; background-color: #f59e0b; color: white; font-weight: bold; border-radius: 50%; border: 2px solid white; box-shadow: 0 2px 4px rgba(0,0,0,0.2); font-size: 14px;">${index + 1}</div>`,
-                              className: 'custom-marker',
-                              iconSize: [32, 32],
-                              iconAnchor: [16, 16],
-                            })}
-                          />
-                        );
-                      })}
+
+                      {previewMapLine.length > 1 && (
+                        <Polyline
+                          positions={previewMapLine}
+                          pathOptions={{
+                            color: '#1B4332',
+                            weight: 4,
+                            opacity: 0.8,
+                          }}
+                        />
+                      )}
+
+                      {previewSortedPlaces.map((place, index) => (
+                        <Marker
+                          key={`${place.name}-${index}`}
+                          position={[place.latitude, place.longitude]}
+                          icon={divIcon({
+                            html: `<div style="display:flex;align-items:center;justify-content:center;width:34px;height:34px;background-color:#f59e0b;color:white;font-weight:bold;border-radius:9999px;border:3px solid white;box-shadow:0 8px 20px rgba(0,0,0,0.25);font-size:14px;">${
+                              index + 1
+                            }</div>`,
+                            className: 'custom-marker',
+                            iconSize: [34, 34],
+                            iconAnchor: [17, 17],
+                          })}
+                        >
+                          <Tooltip>
+                            <div>
+                              <strong>{place.name}</strong>
+                              <br />
+                              {place.province} Province
+                            </div>
+                          </Tooltip>
+                        </Marker>
+                      ))}
                     </MapContainer>
                   </div>
                 </div>
 
                 <div className="rounded-3xl border border-neutral-200 bg-white p-5 shadow-sm h-fit">
-                  <h4 className="text-lg font-bold text-neutral-900 mb-4">Places on the map</h4>
+                  <h4 className="text-lg font-bold text-neutral-900 mb-2">
+                    Route order
+                  </h4>
+                  <p className="mb-4 text-xs text-neutral-500">
+                    {previewDirection === 'north-to-south'
+                      ? 'North to South'
+                      : 'South to North'}{' '}
+                    travel flow
+                  </p>
+
                   <div className="space-y-3">
-                    {recommendation.places.map((place, index) => (
+                    {previewSortedPlaces.map((place, index) => (
                       <div key={place.name} className="flex items-center gap-3">
-                        <div className="flex items-center justify-center w-8 h-8 bg-amber-500 text-white font-bold rounded-full text-sm flex-shrink-0">
+                        <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-amber-500 text-sm font-bold text-white">
                           {index + 1}
                         </div>
-                        <span className="text-sm font-medium text-neutral-800">{place.name}</span>
+                        <div>
+                          <span className="block text-sm font-medium text-neutral-800">
+                            {place.name}
+                          </span>
+                          <span className="block text-xs text-neutral-500">
+                            {place.province} Province
+                          </span>
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -732,12 +1059,17 @@ export default function Tours() {
               Plan Your Trip
             </span>
           </div>
+
           <h2 className="text-4xl sm:text-5xl font-bold text-neutral-900 leading-tight mb-4">
             Plan Your Perfect Sri Lanka Tour
           </h2>
+
           <p className="text-neutral-600 text-base leading-relaxed">
-            Customize your dream itinerary with our interactive tour planner. Select your travel dates, preferred destinations, and vehicle type to receive instant personalized recommendations.
+            Customize your dream itinerary with our interactive tour planner.
+            Select your travel dates, preferred destinations, and vehicle type
+            to receive instant personalized recommendations.
           </p>
+
           <button
             onClick={openPlanner}
             className="mt-8 inline-flex items-center justify-center rounded-full bg-[#1B4332] px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-[#1B4332]/10 transition hover:bg-[#143327]"
@@ -746,18 +1078,19 @@ export default function Tours() {
           </button>
         </div>
 
-
-
         {isPlannerOpen && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4 py-6 sm:px-6 sm:py-8 backdrop-blur-sm">
-            <div className="w-full max-w-3xl overflow-hidden rounded-[32px] border border-white/15 bg-white shadow-2xl">
+            <div className="w-full max-w-4xl overflow-hidden rounded-[32px] border border-white/15 bg-white shadow-2xl">
               <div className="flex flex-col gap-4 border-b border-neutral-200 px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6 sm:py-5">
                 <div>
                   <p className="text-xs uppercase tracking-[0.2em] text-[#1B4332] font-semibold">
                     Step planner
                   </p>
-                  <h3 className="text-2xl font-bold text-neutral-900 mt-2">Easy 5-step trip setup</h3>
+                  <h3 className="text-2xl font-bold text-neutral-900 mt-2">
+                    Easy 5-step trip setup
+                  </h3>
                 </div>
+
                 <button
                   type="button"
                   onClick={closePlanner}
@@ -776,10 +1109,15 @@ export default function Tours() {
                   type="button"
                   onClick={handlePrevStep}
                   disabled={plannerStep === 1}
-                  className={`w-full inline-flex items-center justify-center rounded-full px-5 py-3 text-sm font-semibold transition ${plannerStep === 1 ? 'cursor-not-allowed bg-neutral-100 text-neutral-400' : 'bg-neutral-100 text-neutral-700 hover:bg-neutral-200'} sm:w-auto`}
+                  className={`w-full inline-flex items-center justify-center rounded-full px-5 py-3 text-sm font-semibold transition ${
+                    plannerStep === 1
+                      ? 'cursor-not-allowed bg-neutral-100 text-neutral-400'
+                      : 'bg-neutral-100 text-neutral-700 hover:bg-neutral-200'
+                  } sm:w-auto`}
                 >
                   Back
                 </button>
+
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
                   <button
                     type="button"
@@ -788,6 +1126,7 @@ export default function Tours() {
                   >
                     Cancel
                   </button>
+
                   <button
                     type="button"
                     onClick={handleNextStep}
@@ -811,12 +1150,23 @@ export default function Tours() {
                     Suggested trip plan
                   </span>
                 </div>
+
                 <h3 className="text-3xl sm:text-4xl font-bold text-neutral-900 mb-3">
                   {plannerResult.title}
                 </h3>
+
                 <p className="text-neutral-600 leading-relaxed">
-                  <span className="font-semibold text-neutral-900">Route:</span>{' '}
+                  <span className="font-semibold text-neutral-900">
+                    Route:
+                  </span>{' '}
                   {plannerResult.route}
+                </p>
+
+                <p className="mt-2 text-sm text-[#1B4332] font-semibold">
+                  Route direction:{' '}
+                  {plannerResult.direction === 'north-to-south'
+                    ? 'North to South'
+                    : 'South to North'}
                 </p>
               </div>
 
@@ -828,6 +1178,7 @@ export default function Tours() {
                   Plan This Trip
                   <ArrowRight className="w-4 h-4" />
                 </a>
+
                 <a
                   href={buildWhatsAppLink()}
                   target="_blank"
@@ -844,7 +1195,9 @@ export default function Tours() {
               <div>
                 <div className="flex items-center gap-2 mb-4">
                   <Route className="w-5 h-5 text-[#1B4332]" />
-                  <h4 className="text-lg font-bold text-neutral-900">Day-by-day itinerary</h4>
+                  <h4 className="text-lg font-bold text-neutral-900">
+                    Day-by-day itinerary
+                  </h4>
                 </div>
 
                 <div className="space-y-4">
@@ -859,8 +1212,19 @@ export default function Tours() {
                         </p>
                       </div>
 
-                      <p className="text-sm text-neutral-600 mb-3">
-                        {day.stops.map((stop) => stop.name).join(' → ')}
+                      <p className="text-sm text-neutral-600 mb-2">
+                        {day.stops.length
+                          ? day.stops.map((stop) => stop.name).join(' → ')
+                          : 'No fixed travel. Relaxation or optional local experience.'}
+                      </p>
+
+                      <p className="text-xs font-medium text-[#1B4332] mb-3">
+                        Province: {day.province || 'Flexible'} · Approx
+                        distance: {day.totalKm} km
+                      </p>
+
+                      <p className="text-xs text-neutral-500 mb-3">
+                        {day.routeNote}
                       </p>
 
                       <div className="flex flex-wrap gap-2">
@@ -882,7 +1246,9 @@ export default function Tours() {
                 <div className="rounded-2xl border border-neutral-200 p-5">
                   <div className="flex items-center gap-2 mb-4">
                     <CheckCircle2 className="w-5 h-5 text-[#1B4332]" />
-                    <h4 className="text-lg font-bold text-neutral-900">Why this plan fits</h4>
+                    <h4 className="text-lg font-bold text-neutral-900">
+                      Why this plan fits
+                    </h4>
                   </div>
 
                   <div className="space-y-3">
@@ -909,16 +1275,22 @@ export default function Tours() {
                           <p className="font-semibold text-neutral-900">
                             {destination.name}
                           </p>
+
                           <span className="text-[11px] px-2.5 py-1 rounded-full bg-[#1B4332]/10 text-[#1B4332] font-semibold">
-                            {destination.region}
+                            {destination.province}
                           </span>
                         </div>
+
                         <p className="text-sm text-neutral-600 mb-3">
                           {destination.description}
                         </p>
+
                         <ul className="space-y-1">
                           {destination.activities.slice(0, 2).map((activity) => (
-                            <li key={activity} className="text-xs text-neutral-500">
+                            <li
+                              key={activity}
+                              className="text-xs text-neutral-500"
+                            >
                               • {activity}
                             </li>
                           ))}
@@ -928,6 +1300,19 @@ export default function Tours() {
                   </div>
                 </div>
 
+                <div className="rounded-2xl border border-neutral-200 p-5">
+                  <h4 className="text-lg font-bold text-neutral-900 mb-2">
+                    Recommended vehicle
+                  </h4>
+
+                  <p className="text-sm font-semibold text-[#1B4332] mb-2">
+                    {plannerResult.recommendedFleet.name}
+                  </p>
+
+                  <p className="text-sm text-neutral-600">
+                    {plannerResult.recommendedFleet.reason}
+                  </p>
+                </div>
               </div>
             </div>
           </div>
