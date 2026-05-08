@@ -1,5 +1,5 @@
 import { ArrowDown } from "lucide-react";
-import HeroImg from "../assets/hero.jpg";
+import LandingVideo from "../assets/landing.mp4";
 
 const stats = [
   { value: "2,400+", label: "Happy Guests" },
@@ -14,13 +14,16 @@ export default function Hero() {
       id="home"
       className="relative w-full min-h-screen flex flex-col justify-end overflow-hidden"
     >
-      {/* Background Image */}
-      <div
-        className="absolute inset-0 w-full h-full bg-cover bg-center bg-no-repeat"
-        style={{
-          backgroundImage: `url(${HeroImg})`,
-        }}
-      />
+      {/* Background Video */}
+      <video
+        autoPlay
+        muted
+        loop
+        playsInline
+        className="absolute inset-0 w-full h-full object-cover"
+      >
+        <source src={LandingVideo} type="video/mp4" />
+      </video>
 
       {/* Overlay */}
       <div className="absolute inset-0 bg-gradient-to-b from-black/30 via-black/20 to-black/75" />
